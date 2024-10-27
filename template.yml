@@ -1,0 +1,59 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  SAM
+
+Resources:
+
+  MyEventBus: 
+    Type: AWS::Events::EventBus
+    Properties: 
+      Name: "MyEventBus"    
+
+  ProducerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Timeout: 60
+      MemorySize: 512
+      Tracing: Active
+      Runtime: dotnet8
+      Architectures:
+        - x86_64    
+      Handler: MyLambda::MyLambda.Function::Produce
+      CodeUri: ./src/MyLambda/
+      Policies:
+        - EventBridgePutEventsPolicy:
+            EventBusName: !Ref MyEventBus
+      Events:
+        Post:
+          Type: Api
+          Properties:
+            Path: /events
+            Method: post
+
+  ConsumerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Timeout: 60
+      MemorySize: 512
+      Tracing: Active
+      Runtime: dotnet8
+      Architectures:
+        - x86_64    
+      Handler: MyLambda::MyLambda.Function::Consume
+      CodeUri: ./src/MyLambda/
+      Events: 
+        Trigger:
+          Type: EventBridgeRule
+          Properties:
+            EventBusName: !Ref MyEventBus
+            Pattern:
+              source:
+                - "myapplication"
+              detail-type:
+                - "mycustomevent"
+
+Outputs:
+  MyApiEndpoint:
+    Description: "API endpoint"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/events"
